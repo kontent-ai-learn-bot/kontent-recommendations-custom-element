@@ -1,14 +1,17 @@
 <template>
   <v-app>
     <v-container class="ma-5 pa-5">
-      <v-card flat outlined>
+      <v-row v-if="loading">
+        <v-progress-linear :indeterminate="true"></v-progress-linear>
+      </v-row>
+      <v-card flat outlined v-else>
         <div class="float-right pr-2">
           <v-switch v-model="locked" :prepend-icon="locked ? `mdi-lock` : `mdi-lock-open`"></v-switch>
         </div>
         <v-row justify="center">
           <v-col cols="1">
             <v-text-field
-              v-model="requestedCount"
+              v-model="value.requestedCount"
               hide-details
               single-line
               type="number"
@@ -18,29 +21,30 @@
             ></v-text-field>
           </v-col>
           <v-col cols="3">
-            <v-select
-              v-model="requestedType"
+            <v-autocomplete
+              v-model="value.requestedType"
               label="content items of type"
               :items="allTypes"
               item-text="caption"
               item-value="codename"
               :disabled="locked"
-            ></v-select>
+            ></v-autocomplete>
           </v-col>
           <v-col cols="4">
             <v-select
               label="being recommended by"
-              v-model="scenario"
+              v-model="value.scenario"
               :items="allScenarios"
               item-text="caption"
               item-value="id"
               :disabled="locked"
-            >{{scenario.caption}}</v-select>
+            ></v-select>
           </v-col>
         </v-row>
         <div align="center" v-if="!locked" class="caption warning pa-2 dark">
           By changing the recommendations you are customizing the outcome for
-          <strong>this active content item ONLY</strong>. <br />If you wish to change global settings for the whole content type, please change the settings in the custom element settings in the model designer.
+          <strong>this active content item ONLY</strong>.
+          <br />If you wish to change global settings for the whole content type, please change the settings in the custom element settings in the model designer.
         </div>
       </v-card>
     </v-container>
@@ -48,56 +52,94 @@
 </template>
 
 <script>
+import DeliveryModelClient from "./DeliveryModelClient.js";
+
 export default {
   name: "App",
   data: () => ({
+    projectId: "",
     isDisabled: false,
     locked: true,
-    itemCodename: "",
-    requestedType: "",
-    requestedCount: "",
-    scenario: { id: "default", caption: "similarity and popularity" },
+    loading: true,
+    value: {
+      itemCodename: null,
+      requestedType: null,
+      requestedCount: null,
+      scenario: null
+    },
     allScenarios: [
       { id: "default", caption: "similarity and popularity" },
       { id: "similar", caption: "similarity" },
       { id: "popular", caption: "popularity" }
     ],
-    allTypes: [{ codename: "article", caption: "article" }]
+    allTypes: []
   }),
+  watch: {
+    locked: {
+      handler(val) {
+        if (val) this.save();
+      }
+    }
+  },
   mounted: function() {
     this.initCustomElement();
+    CustomElement.onDisabledChanged(this.handleDisable);
   },
   methods: {
     initCustomElement: function() {
       CustomElement.init((element, _context) => {
         this.isDisabled = element.disabled;
 
-        let currentValue = element.value;
+        this.projectId = _context.projectId;
+        this.value = element.value ? JSON.parse(element.value) : this.getValueFromConfig(element.config, _context);
 
-        let config = element.config;
-
-        this.itemCodename = _context.item.codename;
-        this.requestedType = { codename: config["type"], caption: config["type"] };
-        this.requestedCount = config["count"];
-
-        let projectId = _context.projectId;
-
+        this.getKontentModels(
+          this.value.requestedType.codename ? this.value.requestedType.codename : this.value.requestedType
+        );
         this.updateSize();
       });
     },
     updateSize: function() {
-      // Updates the custom element height in the Kentico UI.
-      const height = Math.max(
-        document.body.scrollHeight,
-        document.body.offsetHeight,
-        document.documentElement.offsetHeight
-      );
-      CustomElement.setHeight(height+35);
+      this.$nextTick(function() {
+        const height = Math.max(
+          document.body.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.offsetHeight
+        );
+
+        CustomElement.setHeight(height + 33);
+      });
     },
-    setValue: function(value) {
+    getValueFromConfig(config, context) {
+      return {
+        itemCodename: context.item.codename,
+        requestedType: { codename: config.type, caption: config.type },
+        requestedCount: config.count,
+        scenario: { id: "default", caption: "similarity and popularity" }
+      };
+    },
+    handleDisable: function(disableState) {
+      this.isDisabled = disableState;
+    },
+    save: function() {
+      const toSave = this.value == null ? null : JSON.stringify(this.value);
       if (!this.isDisabled) {
-        CustomElement.setValue(value || null);
+        CustomElement.setValue(toSave);
       }
+    },
+    getKontentModels(selected) {
+      let client = new DeliveryModelClient(this.projectId);
+      client.getModelsForProject().then(response => {
+        for (let i = 0, x = 1, t; (t = response.data.types[i]); i++) {
+          let item = {
+            caption: t.system.name,
+            codename: t.system.codename
+          };
+          this.allTypes.push(item);
+        }
+        this.value.requestedType = this.allTypes.filter(t => t.codename == selected.trim())[0];
+        this.loading = false;
+      });
     }
   }
 };
