@@ -22,7 +22,7 @@
           </v-col>
           <v-col cols="3">
             <v-autocomplete
-              v-model="value.requestedType"
+              v-model="selectedRequestedType"
               label="content items of type"
               :items="allTypes"
               item-text="caption"
@@ -33,7 +33,7 @@
           <v-col cols="4">
             <v-select
               label="being recommended by"
-              v-model="value.scenario"
+              v-model="selectedScenario"
               :items="allScenarios"
               item-text="caption"
               item-value="id"
@@ -67,6 +67,8 @@ export default {
       requestedCount: null,
       scenario: null
     },
+    selectedScenario: { id: "default", caption: "similarity and popularity" },
+    selectedRequestedType: {},
     allScenarios: [
       { id: "default", caption: "similarity and popularity" },
       { id: "similar", caption: "similarity" },
@@ -81,6 +83,7 @@ export default {
       }
     }
   },
+  computed: {},
   mounted: function() {
     this.initCustomElement();
     CustomElement.onDisabledChanged(this.handleDisable);
@@ -92,10 +95,11 @@ export default {
 
         this.projectId = _context.projectId;
         this.value = element.value ? JSON.parse(element.value) : this.getValueFromConfig(element.config, _context);
+        console.log(this.value);
 
-        this.getKontentModels(
-          this.value.requestedType.codename ? this.value.requestedType.codename : this.value.requestedType
-        );
+        this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
+        this.getKontentModels(this.value.requestedType);
+
         this.updateSize();
       });
     },
@@ -113,18 +117,23 @@ export default {
     getValueFromConfig(config, context) {
       return {
         itemCodename: context.item.codename,
-        requestedType: { codename: config.type, caption: config.type },
+        requestedType: config.type,
         requestedCount: config.count,
-        scenario: { id: "default", caption: "similarity and popularity" }
+        scenario: "default"
       };
     },
     handleDisable: function(disableState) {
       this.isDisabled = disableState;
     },
     save: function() {
-      const toSave = this.value == null ? null : JSON.stringify(this.value);
-      if (!this.isDisabled) {
-        CustomElement.setValue(toSave);
+      if (this.value) {
+        this.value.scenario = this.selectedScenario;
+        this.value.requestedType = this.selectedRequestedType;
+
+        const toSave = JSON.stringify(this.value);
+        if (!this.isDisabled) {
+          CustomElement.setValue(toSave);
+        }
       }
     },
     getKontentModels(selected) {
@@ -137,7 +146,7 @@ export default {
           };
           this.allTypes.push(item);
         }
-        this.value.requestedType = this.allTypes.filter(t => t.codename == selected.trim())[0];
+        this.selectedRequestedType = this.allTypes.filter(t => t.codename == selected)[0];
         this.loading = false;
       });
     }
