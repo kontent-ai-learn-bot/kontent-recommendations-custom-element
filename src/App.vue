@@ -6,7 +6,11 @@
       </v-row>
       <v-card flat outlined v-else>
         <div class="float-right pr-2">
-          <v-switch v-model="locked" :prepend-icon="locked ? `mdi-lock` : `mdi-lock-open`"></v-switch>
+          <v-switch
+            v-model="locked"
+            :prepend-icon="locked ? `mdi-lock` : `mdi-lock-open`"
+            :append-icon="!locked ? `mdi-content-save` : ``"
+          ></v-switch>
         </div>
         <v-row justify="center">
           <v-col cols="1">
@@ -26,8 +30,9 @@
               label="content items of type"
               :items="allTypes"
               item-text="caption"
-              item-value="codename"
               :disabled="locked"
+              @click="updateSize"
+              return-object
             ></v-autocomplete>
           </v-col>
           <v-col cols="4">
@@ -36,11 +41,18 @@
               v-model="selectedScenario"
               :items="allScenarios"
               item-text="caption"
-              item-value="id"
               :disabled="locked"
+              return-object
             ></v-select>
           </v-col>
         </v-row>
+        <div align="center" v-if="changed" class="caption warning pa-2 dark">
+          Recommendation settings for this content item are different than the default ones.
+          <br />You can
+          <v-btn x-small class="ma-1 pl-1 pr-1" color="primary" :disabled="locked" @click="reset">
+            <strong>reset</strong>
+          </v-btn>the settings with the press of the button, if unlocked.
+        </div>
         <div align="center" v-if="!locked" class="caption warning pa-2 dark">
           By changing the recommendations you are customizing the outcome for
           <strong>this active content item ONLY</strong>.
@@ -61,6 +73,8 @@ export default {
     isDisabled: false,
     locked: true,
     loading: true,
+    changed: false,
+    defaultValue: {},
     value: {
       itemCodename: null,
       requestedType: null,
@@ -80,6 +94,7 @@ export default {
     locked: {
       handler(val) {
         if (val) this.save();
+        this.updateSize();
       }
     }
   },
@@ -92,16 +107,33 @@ export default {
     initCustomElement: function() {
       CustomElement.init((element, _context) => {
         this.isDisabled = element.disabled;
-
         this.projectId = _context.projectId;
-        this.value = element.value ? JSON.parse(element.value) : this.getValueFromConfig(element.config, _context);
+
+        this.defaultValue = this.getValueFromConfig(element.config, _context);
+        this.value = element.value ? JSON.parse(element.value) : this.defaultValue;
+
         console.log(this.value);
+
+        this.changed = JSON.stringify(this.value) != JSON.stringify(this.defaultValue);
 
         this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
         this.getKontentModels(this.value.requestedType);
 
         this.updateSize();
       });
+    },
+    getValueFromConfig(config, context) {
+      return {
+        itemCodename: context.item.codename,
+        requestedType: config.type,
+        requestedCount: config.count,
+        scenario: config.scenario ? config.scenario : "default"
+      };
+    },
+    reset: function() {
+      this.value = this.defaultValue;
+      this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
+      this.selectedRequestedType = this.allTypes.filter(t => t.codename == this.value.requestedType)[0];
     },
     updateSize: function() {
       this.$nextTick(function() {
@@ -111,26 +143,21 @@ export default {
           document.documentElement.offsetHeight
         );
 
-        CustomElement.setHeight(height + 33);
+        CustomElement.setHeight(height);
       });
-    },
-    getValueFromConfig(config, context) {
-      return {
-        itemCodename: context.item.codename,
-        requestedType: config.type,
-        requestedCount: config.count,
-        scenario: "default"
-      };
     },
     handleDisable: function(disableState) {
       this.isDisabled = disableState;
     },
     save: function() {
       if (this.value) {
-        this.value.scenario = this.selectedScenario;
-        this.value.requestedType = this.selectedRequestedType;
+        this.value.scenario = this.selectedScenario.id;
+        this.value.requestedType = this.selectedRequestedType.codename;
 
         const toSave = JSON.stringify(this.value);
+
+        this.changed = toSave != JSON.stringify(this.defaultValue);
+
         if (!this.isDisabled) {
           CustomElement.setValue(toSave);
         }
