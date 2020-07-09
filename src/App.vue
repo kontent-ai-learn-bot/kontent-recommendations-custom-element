@@ -112,8 +112,6 @@ export default {
         this.defaultValue = this.getValueFromConfig(element.config, _context);
         this.value = element.value ? JSON.parse(element.value) : this.defaultValue;
 
-        console.log(this.value);
-
         this.changed = JSON.stringify(this.value) != JSON.stringify(this.defaultValue);
 
         this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
