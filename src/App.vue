@@ -10,12 +10,13 @@
             v-model="locked"
             :prepend-icon="locked ? `mdi-lock` : `mdi-lock-open`"
             :append-icon="!locked ? `mdi-content-save` : ``"
+            :disabled="isDisabled"
           ></v-switch>
         </div>
         <v-row justify="center">
           <v-col cols="1">
             <v-text-field
-              v-model="value.requestedCount"
+              v-model="selectedRequestedCount"
               hide-details
               single-line
               type="number"
@@ -81,6 +82,7 @@ export default {
       requestedCount: null,
       scenario: null
     },
+    selectedRequestedCount: null,
     selectedScenario: { id: "default", caption: "similarity and popularity" },
     selectedRequestedType: {},
     allScenarios: [
@@ -95,6 +97,24 @@ export default {
       handler(val) {
         if (val) this.save();
         this.updateSize();
+      }
+    },
+    selectedRequestedCount: {
+      deep: true,
+      handler() {
+        this.setChanged();
+      }
+    },
+    selectedScenario: {
+      deep: true,
+      handler() {
+        this.setChanged();
+      }
+    },
+    selectedRequestedType: {
+      deep: true,
+      handler() {
+        this.setChanged();
       }
     }
   },
@@ -114,6 +134,7 @@ export default {
 
         this.changed = JSON.stringify(this.value) != JSON.stringify(this.defaultValue);
 
+        this.selectedRequestedCount = this.value.requestedCount;
         this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
         this.getKontentModels(this.value.requestedType);
 
@@ -130,6 +151,7 @@ export default {
     },
     reset: function() {
       this.value = this.defaultValue;
+      this.selectedRequestedCount = this.value.requestedCount;
       this.selectedScenario = this.allScenarios.filter(s => s.id == this.value.scenario)[0];
       this.selectedRequestedType = this.allTypes.filter(t => t.codename == this.value.requestedType)[0];
     },
@@ -140,7 +162,6 @@ export default {
           document.body.offsetHeight,
           document.documentElement.offsetHeight
         );
-
         CustomElement.setHeight(height);
       });
     },
@@ -151,13 +172,9 @@ export default {
       if (this.value) {
         this.value.scenario = this.selectedScenario.id;
         this.value.requestedType = this.selectedRequestedType.codename;
-
-        const toSave = JSON.stringify(this.value);
-
-        this.changed = toSave != JSON.stringify(this.defaultValue);
-
+        this.value.requestedCount = parseInt(this.selectedRequestedCount);
         if (!this.isDisabled) {
-          CustomElement.setValue(toSave);
+          CustomElement.setValue(JSON.stringify(this.value));
         }
       }
     },
@@ -174,6 +191,16 @@ export default {
         this.selectedRequestedType = this.allTypes.filter(t => t.codename == selected)[0];
         this.loading = false;
       });
+    },
+    setChanged() {
+      let val = {
+        itemCodename: this.value.itemCodename,
+        requestedType: this.selectedRequestedType.codename,
+        requestedCount: parseInt(this.selectedRequestedCount),
+        scenario: this.selectedScenario.id
+      };
+
+      this.changed = JSON.stringify(val) != JSON.stringify(this.defaultValue);
     }
   }
 };
