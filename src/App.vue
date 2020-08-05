@@ -130,7 +130,13 @@ export default {
         this.projectId = _context.projectId;
 
         this.defaultValue = this.getValueFromConfig(element.config, _context);
-        this.value = element.value ? JSON.parse(element.value) : this.defaultValue;
+
+        if (!element.value) {
+          this.value = this.defaultValue;
+          this.save();
+        } else {
+          this.value = JSON.parse(element.value);
+        }
 
         this.changed = JSON.stringify(this.value) != JSON.stringify(this.defaultValue);
 
